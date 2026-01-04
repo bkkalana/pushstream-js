@@ -1,0 +1,16 @@
+{
+  "name": "pushstream-js",
+  "version": "1.0.0",
+  "description": "PushStream JavaScript SDK for real-time messaging",
+  "main": "pushstream.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": ["websocket", "realtime", "pusher", "messaging"],
+  "author": "PushStream",
+  "license": "MIT",
+  "dependencies": {},
+  "engines": {
+    "node": ">=14.0.0"
+  }
+}

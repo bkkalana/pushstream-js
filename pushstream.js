@@ -1,0 +1,225 @@
+class PushStream {
+  constructor(appKey, options = {}) {
+    this.appKey = appKey;
+    this.wsUrl = options.wsUrl || 'wss://ws.pushstream.io';
+    this.apiUrl = options.apiUrl || 'https://api.pushstream.io';
+    this.ws = null;
+    this.socketId = null;
+    this.channels = new Map();
+    this.reconnectAttempts = 0;
+    this.maxReconnectAttempts = 5;
+  }
+
+  connect() {
+    return new Promise((resolve, reject) => {
+      try {
+        this.ws = new WebSocket(this.wsUrl);
+      } catch (error) {
+        reject(error);
+        this.attemptReconnect();
+        return;
+      }
+
+      const timeout = setTimeout(() => {
+        if (!this.socketId) {
+          reject(new Error('Connection timeout'));
+          this.attemptReconnect();
+        }
+      }, 10000);
+
+      this.ws.onopen = () => {
+        console.log('[PushStream] Connected');
+        this.reconnectAttempts = 0;
+      };
+
+      this.ws.onmessage = (event) => {
+        const message = JSON.parse(event.data);
+        
+        if (message.event === 'pusher:connection_established') {
+          const data = JSON.parse(message.data);
+          this.socketId = data.socket_id;
+          clearTimeout(timeout);
+          resolve(this.socketId);
+        } else if (message.event === 'pusher:error') {
+          console.error('[PushStream] Error:', message.data);
+        } else {
+          this.handleMessage(message);
+        }
+      };
+
+      this.ws.onclose = () => {
+        console.log('[PushStream] Disconnected');
+        clearTimeout(timeout);
+        this.socketId = null;
+        this.attemptReconnect();
+      };
+
+      this.ws.onerror = (error) => {
+        console.error('[PushStream] WebSocket error:', error);
+        clearTimeout(timeout);
+        if (!this.socketId) reject(error);
+      };
+    });
+  }
+
+  attemptReconnect() {
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      console.error('[PushStream] Max reconnection attempts reached');
+      return;
+    }
+
+    const delay = Math.min(1000 * Math.pow(2, this.reconnectAttempts), 30000);
+    this.reconnectAttempts++;
+
+    console.log(`[PushStream] Reconnecting in ${delay}ms (attempt ${this.reconnectAttempts})`);
+    setTimeout(() => this.connect(), delay);
+  }
+
+  subscribe(channelName, callbacks = {}) {
+    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+      throw new Error('Not connected');
+    }
+    
+    const channel = new Channel(channelName, this, callbacks);
+    this.channels.set(channelName, channel);
+    
+    this.send({
+      event: 'pusher:subscribe',
+      data: { channel: channelName }
+    });
+
+    return channel;
+  }
+
+  unsubscribe(channelName) {
+    this.send({
+      event: 'pusher:unsubscribe',
+      data: { channel: channelName }
+    });
+    this.channels.delete(channelName);
+  }
+
+  send(data) {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify(data));
+    }
+  }
+
+  handleMessage(message) {
+    const channel = this.channels.get(message.channel);
+    if (channel) {
+      channel.handleEvent(message.event, JSON.parse(message.data));
+    }
+  }
+
+  disconnect() {
+    if (this.ws) {
+      this.ws.close();
+      this.ws = null;
+    }
+  }
+
+  // REST API methods
+  async publish(appId, appSecret, channel, event, data) {
+    const timestamp = Math.floor(Date.now() / 1000);
+    const body = JSON.stringify({ name: event, channel, data });
+    const path = `/api/apps/${appId}/events`;
+    const queryString = `auth_timestamp=${timestamp}`;
+    const stringToSign = `POST\n${path}\n${queryString}\n${body}`;
+    
+    const signature = await this.hmacSha256(stringToSign, appSecret);
+    const authHeader = `${appId}:${signature}`;
+
+    const response = await fetch(`${this.apiUrl}${path}?${queryString}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': authHeader,
+        'Content-Type': 'application/json'
+      },
+      body
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+    }
+
+    return response.json();
+  }
+
+  async hmacSha256(message, secret) {
+    // Node.js
+    if (typeof window === 'undefined') {
+      const crypto = require('crypto');
+      return crypto.createHmac('sha256', secret).update(message).digest('hex');
+    }
+    
+    // Browser
+    const encoder = new TextEncoder();
+    const keyData = encoder.encode(secret);
+    const messageData = encoder.encode(message);
+    
+    const key = await crypto.subtle.importKey(
+      'raw',
+      keyData,
+      { name: 'HMAC', hash: 'SHA-256' },
+      false,
+      ['sign']
+    );
+    
+    const signature = await crypto.subtle.sign('HMAC', key, messageData);
+    return Array.from(new Uint8Array(signature))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
+  }
+}
+
+class Channel {
+  constructor(name, client, callbacks = {}) {
+    this.name = name;
+    this.client = client;
+    this.callbacks = callbacks;
+    this.eventHandlers = new Map();
+  }
+
+  bind(event, callback) {
+    if (!this.eventHandlers.has(event)) {
+      this.eventHandlers.set(event, []);
+    }
+    this.eventHandlers.get(event).push(callback);
+    return this;
+  }
+
+  unbind(event, callback) {
+    if (!this.eventHandlers.has(event)) return;
+    
+    if (callback) {
+      const handlers = this.eventHandlers.get(event);
+      const index = handlers.indexOf(callback);
+      if (index > -1) handlers.splice(index, 1);
+    } else {
+      this.eventHandlers.delete(event);
+    }
+    return this;
+  }
+
+  handleEvent(event, data) {
+    const handlers = this.eventHandlers.get(event);
+    if (handlers) {
+      handlers.forEach(handler => handler(data));
+    }
+  }
+
+  unsubscribe() {
+    this.client.unsubscribe(this.name);
+  }
+}
+
+// Node.js support
+if (typeof module !== 'undefined' && module.exports) {
+  module.exports = PushStream;
+}
+
+// Browser support
+if (typeof window !== 'undefined') {
+  window.PushStream = PushStream;
+}
