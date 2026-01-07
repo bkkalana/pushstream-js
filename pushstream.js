@@ -1,8 +1,8 @@
 class PushStream {
   constructor(appKey, options = {}) {
     this.appKey = appKey;
-    this.wsUrl = options.wsUrl || 'wss://ws.pushstream.ceylonitsolutions.online';
-    this.apiUrl = options.apiUrl || 'https://api.pushstream.ceylonitsolutions.online';
+    this.wsUrl = options.wsUrl || 'ws://localhost:3001';
+    this.apiUrl = options.apiUrl || 'http://localhost:8000';
     this.ws = null;
     this.socketId = null;
     this.channels = new Map();
@@ -110,9 +110,15 @@ class PushStream {
   }
 
   handleMessage(message) {
+    console.log('[PushStream] Handling message:', message);
     const channel = this.channels.get(message.channel);
     if (channel) {
-      channel.handleEvent(message.event, JSON.parse(message.data));
+      // Parse data if it's a string
+      const eventData = typeof message.data === 'string' ? JSON.parse(message.data) : message.data;
+      console.log('[PushStream] Parsed data:', eventData);
+      channel.handleEvent(message.event, eventData);
+    } else {
+      console.warn('[PushStream] No channel found for:', message.channel);
     }
   }
 

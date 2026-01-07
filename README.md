@@ -49,8 +49,8 @@ client.connect().then(socketId => {
 
 ```javascript
 const client = new PushStream('your-app-key', {
-  wsUrl: 'wss://ws.pushstream.ceylonitsolutions.online',
-  apiUrl: 'https://api.pushstream.ceylonitsolutions.online'
+  wsUrl: 'ws://localhost:3001',
+  apiUrl: 'http://localhost:8000'
 });
 ```
 
