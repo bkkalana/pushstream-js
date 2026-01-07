@@ -1,6 +1,7 @@
 class PushStream {
   constructor(appKey, options = {}) {
     this.appKey = appKey;
+    this.appId = options.appId;
     this.wsUrl = options.wsUrl || 'wss://ws.pushstream.ceylonitsolutions.online';
     this.apiUrl = options.apiUrl || 'https://api.pushstream.ceylonitsolutions.online';
     this.ws = null;
@@ -12,8 +13,13 @@ class PushStream {
 
   connect() {
     return new Promise((resolve, reject) => {
+      if (!this.appId || !this.appKey) {
+        reject(new Error('appId and appKey are required'));
+        return;
+      }
+
       try {
-        this.ws = new WebSocket(`${this.wsUrl}?appKey=${this.appKey}`);
+        this.ws = new WebSocket(`${this.wsUrl}?app_id=${this.appId}&app_key=${this.appKey}`);
       } catch (error) {
         reject(error);
         this.attemptReconnect();
