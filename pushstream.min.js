@@ -1,8 +1,8 @@
 class PushStream {
   constructor(appKey, options = {}) {
     this.appKey = appKey;
-    this.wsUrl = options.wsUrl || 'ws://localhost:3001';
-    this.apiUrl = options.apiUrl || 'http://localhost:8000';
+    this.wsUrl = options.wsUrl || 'wss://ws.pushstream.ceylonitsolutions.online';
+    this.apiUrl = options.apiUrl || 'https://api.pushstream.ceylonitsolutions.online';
     this.ws = null;
     this.socketId = null;
     this.channels = new Map();
