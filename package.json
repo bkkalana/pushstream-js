@@ -1,6 +1,6 @@
 {
   "name": "@ceylonitsolutions/pushstream-js",
-  "version": "1.0.2",
+  "version": "2.0.0",
   "description": "PushStream JavaScript SDK for real-time messaging",
   "main": "pushstream.js",
   "browser": "dist/pushstream.min.js",
@@ -11,7 +11,12 @@
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": ["websocket", "realtime", "pusher", "messaging"],
+  "keywords": [
+    "websocket",
+    "realtime",
+    "pusher",
+    "messaging"
+  ],
   "author": "Ceylon IT Solutions",
   "license": "MIT",
   "repository": {
