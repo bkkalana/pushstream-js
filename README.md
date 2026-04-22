@@ -1,149 +1,94 @@
 # PushStream JavaScript SDK
 
-Real-time messaging SDK for JavaScript/Node.js applications.
+Realtime client for PushStream-compatible websocket connections, with an optional server-side publish helper for Node.js.
 
 ## Installation
 
 ```bash
-npm install @ceylonitsolutions/pushstream-js
+npm install @pushstream/pushstream-js
 ```
 
-## Quick Start
+## Safe Defaults
 
-### Browser
+- No hosted production URL is hard-coded.
+- Browser clients resolve websocket and API origins from the current page unless you pass explicit endpoints.
+- Secret-bearing publish calls are blocked by default in browser environments.
+- Logging is disabled by default.
+
+## Browser Realtime Client
 
 ```html
 <script src="pushstream.js"></script>
 <script>
-  const client = new PushStream('your-app-key');
-  
-  client.connect().then(socketId => {
-    console.log('Connected:', socketId);
-    
-    const channel = client.subscribe('my-channel');
-    channel.bind('my-event', (data) => {
-      console.log('Received:', data);
-    });
+  const client = new PushStream('your-app-key', {
+    appId: 'your-app-id',
+    wsUrl: 'wss://ws.pushstream.online',
+    authEndpoint: 'https://api.pushstream.online/api/apps/your-app-id/auth'
+  });
+
+  client.connect().then(() => {
+    const channel = client.subscribe('public-orders');
+    channel.bind('order.created', (data) => console.log(data));
   });
 </script>
 ```
 
-### Node.js
+For private or presence channels use `subscribeAuthenticated(channelName)`.
+
+## Node.js Publish Helper
 
 ```javascript
-const PushStream = require('@ceylonitsolutions/pushstream-js');
+const PushStream = require('@pushstream/pushstream-js');
 
-const client = new PushStream('your-app-key');
-
-client.connect().then(socketId => {
-  console.log('Connected:', socketId);
-  
-  const channel = client.subscribe('my-channel');
-  channel.bind('my-event', (data) => {
-    console.log('Received:', data);
-  });
-});
-```
-
-## Configuration
-
-```javascript
 const client = new PushStream('your-app-key', {
-  wsUrl: 'wss://ws.pushstream.ceylonitsolutions.online',
-  apiUrl: 'https://api.pushstream.ceylonitsolutions.online'
+  apiUrl: 'https://api.pushstream.online',
 });
-```
 
-## API Reference
-
-### Client Methods
-
-#### `connect()`
-Establishes WebSocket connection.
-
-```javascript
-client.connect()
-  .then(socketId => console.log('Connected'))
-  .catch(error => console.error('Failed to connect'));
-```
-
-#### `subscribe(channelName)`
-Subscribe to a channel.
-
-```javascript
-const channel = client.subscribe('my-channel');
-```
-
-#### `unsubscribe(channelName)`
-Unsubscribe from a channel.
-
-```javascript
-client.unsubscribe('my-channel');
-```
-
-#### `disconnect()`
-Close the connection.
-
-```javascript
-client.disconnect();
-```
-
-#### `publish(appId, appSecret, channel, event, data)`
-Publish events via REST API.
-
-```javascript
 await client.publish(
-  'app-id',
-  'app-secret',
-  'my-channel',
-  'my-event',
-  { message: 'Hello' }
+  'your-app-id',
+  process.env.PUSHSTREAM_APP_SECRET,
+  'public-orders',
+  'order.created',
+  { id: 1 }
 );
 ```
 
-### Channel Methods
+`publish()` uses the current PushStream signing contract:
 
-#### `bind(event, callback)`
-Listen for events on the channel.
+- `auth_key`
+- `auth_timestamp`
+- `auth_version`
+- `body_md5`
+- `auth_signature`
 
-```javascript
-channel.bind('my-event', (data) => {
-  console.log(data);
-});
-```
-
-#### `unbind(event, callback)`
-Remove event listener.
+## Constructor
 
 ```javascript
-channel.unbind('my-event', callback);
+new PushStream(appKey, {
+  appId,
+  wsUrl,
+  apiUrl,
+  authEndpoint,
+  authHeaders,
+  protocol,
+  authVersion,
+  client,
+  version,
+  maxReconnectAttempts,
+  requestTimeoutMs,
+  enableLogging,
+  allowClientPublish
+})
 ```
 
-#### `unsubscribe()`
-Unsubscribe from the channel.
+## Notes
 
-```javascript
-channel.unsubscribe();
+- `subscribe()` is for public channels.
+- `subscribeAuthenticated()` is for private and presence channels.
+- Do not expose app secrets in browser code.
+
+## Testing
+
+```bash
+npm test
 ```
-
-## Features
-
-- WebSocket real-time messaging
-- Automatic reconnection with exponential backoff
-- Channel subscriptions
-- Event binding
-- REST API publishing
-- Browser and Node.js support
-
-## Requirements
-
-- Node.js >= 14.0.0 (for Node.js usage)
-- Modern browser with WebSocket support
-
-## License
-
-MIT
-
-## Author
-
-Ceylon IT Solutions
